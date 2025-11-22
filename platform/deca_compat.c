@@ -1,22 +1,25 @@
 /**
  * @file:     deca_compat.c
- * 
+ *
  * @brief     This file contains the code for the backward-compatibility with existing Decawave application examples
  *
  * @author    Decawave Applications
  *
  * @copyright SPDX-FileCopyrightText: Copyright (c) 2024 Qorvo US, Inc.
  *            SPDX-License-Identifier: LicenseRef-QORVO-2
- * 
+ *
  * Requirements to the application:
  * Call the dwt_probe() at the start of the application to select the correct driver.
  *
  */
+
+#include <zephyr/sys/printk.h>
 #include "deca_device_api.h"
 #include "deca_interface.h"
 #include "deca_version.h"
 #include "deca_private.h"
 #include "deca_ull.h"
+#include <complex.h>
 
 #if CONFIG_DW3000_CHIP_DW3720
 #include "dw3720/dw3720_deca_regs.h"
@@ -83,6 +86,7 @@ int32_t dwt_probe(struct dwt_probe_s *probe_interf)
 
     if(probe_interf != NULL)
     {
+        printk("probe iface\n");
         if(probe_interf->dw == NULL)
         {
             dw = &static_dw;
@@ -99,8 +103,12 @@ int32_t dwt_probe(struct dwt_probe_s *probe_interf)
         // Device ID address is common in between all DW chips
         addr = (uint8_t)DW3XXX_DEVICE_ID;
 
+        printk("addr:  %d\n", addr);
+
         (void)dw->SPI->readfromspi(sizeof(uint8_t), &addr, sizeof(buf), buf);
         devId = (((uint32_t)buf[3] << 24UL) | ((uint32_t)buf[2] << 16UL) | ((uint32_t)buf[1] << 8UL) | (uint32_t)buf[0]);
+
+        printk("devId: %x\n", devId);
 
 #ifdef WIN32
         // Find which DW device the host is connected to and assign correct low-level driver structure
@@ -116,18 +124,29 @@ int32_t dwt_probe(struct dwt_probe_s *probe_interf)
 
 #else
         struct dwt_driver_s **driver_list = probe_interf->driver_list;
+        struct dwt_driver_s *dl;
+        printk("Drv num: %d\n", probe_interf->dw_driver_num);
         for (uint8_t i = 0U; i < probe_interf->dw_driver_num; i++)
         {
-            if ((devId & driver_list[i]->devmatch) == (driver_list[i]->devid & driver_list[i]->devmatch))
+            dl = driver_list[i];
+            printk("i: %d %#x %#x | %s | %s | %d\n",
+                    i,
+                    dl->devid,
+                    dl->devmatch,
+                    dl->name,
+                    dl->version,
+                    dl->vernum);
+            if ((devId & dl->devmatch) ==
+                (dl->devid & dl->devmatch))
             {
-                dw->dwt_driver = driver_list[i];
+                printk("Success\n");
+                dw->dwt_driver = dl;
                 ret = DWT_SUCCESS;
                 break;
             }
         }
 #endif
     }
-
     return (int32_t)ret;
 }
 
@@ -282,7 +301,7 @@ uint8_t dwt_otprevision(void)
  * output parameters none
  *
  * no return value
- * 
+ *
  * DW3720 ONLY
  */
 void dwt_settemperature(int8_t temperature)
@@ -300,7 +319,7 @@ void dwt_settemperature(int8_t temperature)
  * output parameters none
  *
  * returns the temperature in celcius that will be used by PLL calibrations
- * 
+ *
  * DW3720 ONLY
  */
 int8_t dwt_getpllcalibrationtemperature(void)
@@ -714,14 +733,14 @@ void dwt_writetxfctrl(uint16_t txFrameLength, uint16_t txBufferOffset, uint8_t r
  * input parameters:
  * @param preambleLength - sets the length of the preamble, value of 0 disables this setting and the length of the
  *                         frame will be dependent on the TXPSR_PE setting as configured by dwt_configure function
- * 
+ *
  * @note preambleLength is uint16_t only to keep compatibility with QM35xxx devices but cannot be > 0xFF.
- * 
+ *
  * Valid range for the preamble length code is [1..0xFF] which corresponds to [16..2048] symbols.
  * You can use convenience constants DWT_PLEN_32..DWT_PLEN_2048 defined for some
  * common preamble lengths. Note that setting preamble length smaller than 32 symbols
  * should be used for testing only and will likely result in poor performance.
- * 
+ *
  * output parameters
  *
  * no return value
@@ -3306,7 +3325,7 @@ uint8_t dwt_pll_chx_auto_cal(int32_t chan, uint32_t coarse_code, uint16_t sleep,
  *        characteristics, if you pass in a temperature of TEMP_INIT (-127), the functions will also read
  *        onchip temperature sensors to determine the temperature, the crystal temperature
  *        could be different.
- *        If a crystal temperature of TEMP_INIT (-127) is passed, the function will assume 25C. 
+ *        If a crystal temperature of TEMP_INIT (-127) is passed, the function will assume 25C.
  *        If a crystal trim of 0 is passed, the function will use the calibration value from OTP.
  *
  *        This is to compensate for crystal temperature versus frequency curve e.g.
@@ -3324,7 +3343,7 @@ uint8_t dwt_pll_chx_auto_cal(int32_t chan, uint32_t coarse_code, uint16_t sleep,
  *
  *
  * input parameters:
- * @param[in] dwt_xtal_trim_t params -- the based-on parameters to set the crystal trim. 
+ * @param[in] dwt_xtal_trim_t params -- the based-on parameters to set the crystal trim.
  * @param[in] uin8_t xtaltrim -- newly programmed crystal trim value
  *
  * output parameters
