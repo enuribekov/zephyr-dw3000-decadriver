@@ -61,12 +61,6 @@ static struct dwchip_s static_dw = { 0 };
 
 static struct dwchip_s *dw; //pointer to the local driver structure
 
-#ifdef WIN32
-extern const struct dwt_driver_s dw3000_driver;
-extern const struct dwt_driver_s dw3720_driver;
-static const struct dwt_driver_s* tmp_ptr[] = { &dw3000_driver, &dw3720_driver };
-#endif // WIN32
-
 /*! ------------------------------------------------------------------------------------------------------------------
  * @brief This function selects the correct DecaDriver from the list
  *
@@ -86,7 +80,6 @@ int32_t dwt_probe(struct dwt_probe_s *probe_interf)
 
     if(probe_interf != NULL)
     {
-        printk("probe iface\n");
         if(probe_interf->dw == NULL)
         {
             dw = &static_dw;
@@ -103,33 +96,21 @@ int32_t dwt_probe(struct dwt_probe_s *probe_interf)
         // Device ID address is common in between all DW chips
         addr = (uint8_t)DW3XXX_DEVICE_ID;
 
-        printk("addr:  %d\n", addr);
-
         (void)dw->SPI->readfromspi(sizeof(uint8_t), &addr, sizeof(buf), buf);
-        devId = (((uint32_t)buf[3] << 24UL) | ((uint32_t)buf[2] << 16UL) | ((uint32_t)buf[1] << 8UL) | (uint32_t)buf[0]);
+        devId = (((uint32_t)buf[3] << 24UL) |
+                ((uint32_t)buf[2] << 16UL) |
+                ((uint32_t)buf[1] << 8UL) |
+                (uint32_t)buf[0]);
 
         printk("devId: %x\n", devId);
 
-#ifdef WIN32
-        // Find which DW device the host is connected to and assign correct low-level driver structure
-        for(uint8_t i = 0U; i < 2U; i++)
-        {
-            if ((devId & tmp_ptr[i]->devmatch) == (tmp_ptr[i]->devid & tmp_ptr[i]->devmatch))
-            {
-                dw->dwt_driver = tmp_ptr[i];
-                ret = DWT_SUCCESS;
-                break;
-            }
-        }
-
-#else
         struct dwt_driver_s **driver_list = probe_interf->driver_list;
         struct dwt_driver_s *dl;
         printk("Drv num: %d\n", probe_interf->dw_driver_num);
         for (uint8_t i = 0U; i < probe_interf->dw_driver_num; i++)
         {
             dl = driver_list[i];
-            printk("i: %d %#x %#x | %s | %s | %d\n",
+            printk("i: %d %#x %#x | %s | %s | %#x\n",
                     i,
                     dl->devid,
                     dl->devmatch,
@@ -145,7 +126,6 @@ int32_t dwt_probe(struct dwt_probe_s *probe_interf)
                 break;
             }
         }
-#endif
     }
     return (int32_t)ret;
 }
